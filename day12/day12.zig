@@ -1,93 +1,95 @@
 const std = @import("std");
 
 fn solve(input: []const u8) !void {
-    var search = try parse(input);
-    try searchSignal(&search);
+    var map = try parse(input);
+    const result = try searchSignal(&map);
     std.debug.print(
         "Normal Distance: {d}, Shortest Distance: {d}\n",
-        .{ search.starting_index_distance, search.shortest_start_distance },
+        .{ result.starting_index_distance, result.shortest_start_distance },
     );
 }
 
-const SignalSearch = struct {
-    map: []const u8,
-    map_width: u32,
-    map_visited: []bool,
+const Cell = packed struct { height: u7, visited: bool };
+const SignalMap = struct {
+    cells: []Cell,
+    width: u32,
     starting_index: u32,
     signal_index: u32,
-
-    starting_index_distance: u32,
-    shortest_start_distance: u32,
 };
 
-fn parse(input: []const u8) !SignalSearch {
-    var map = std.ArrayList(u8).init(gpa.allocator());
-    var search: SignalSearch = undefined;
-    search.shortest_start_distance = std.math.maxInt(u32);
+fn parse(input: []const u8) !SignalMap {
+    var cells = std.ArrayList(Cell).init(gpa.allocator());
+    var map: SignalMap = undefined;
 
     var i = std.mem.tokenize(u8, input, "\n ");
     while (i.next()) |map_line| {
-        search.map_width = @intCast(u32, map_line.len);
-        try map.appendSlice(map_line);
+        map.width = @intCast(u32, map_line.len);
+        try cells.appendSlice(@ptrCast([]const Cell, map_line));
     }
 
-    for (map.items) |*cell, index| {
-        if (cell.* == 'S') {
-            search.starting_index = @intCast(u32, index);
-            cell.* = 'a';
+    for (cells.items) |*cell, index| {
+        std.debug.assert(!cell.visited);
+        if (cell.height == 'S') {
+            map.starting_index = @intCast(u32, index);
+            cell.height = 'a';
         }
-        if (cell.* == 'E') {
-            search.signal_index = @intCast(u32, index);
-            cell.* = 'z';
+        if (cell.height == 'E') {
+            map.signal_index = @intCast(u32, index);
+            cell.height = 'z';
         }
     }
 
-    search.map = try map.toOwnedSlice();
-    search.map_visited = try gpa.allocator().alloc(bool, search.map.len);
-    for (search.map_visited) |*v| v.* = false;
-    return search;
+    map.cells = try cells.toOwnedSlice();
+    return map;
 }
 
-const Cell = struct { index: u32, distance: u32 };
-const CellQueue = std.PriorityQueue(Cell, void, distancePriority);
-fn distancePriority(context: void, a: Cell, b: Cell) std.math.Order {
+const Node = struct { index: u32, distance: u32 };
+const NodeQueue = std.PriorityQueue(Node, void, distancePriority);
+fn distancePriority(context: void, a: Node, b: Node) std.math.Order {
     _ = context;
     return std.math.order(a.distance, b.distance);
 }
 
-fn searchSignal(search: *SignalSearch) !void {
-    var queue = CellQueue.init(gpa.allocator(), {});
-    try queue.add(Cell{ .index = search.signal_index, .distance = 0 });
+const SearchSignalResult = struct {
+    starting_index_distance: u32 = std.math.maxInt(u32),
+    shortest_start_distance: u32 = std.math.maxInt(u32),
+};
+
+fn searchSignal(map: *SignalMap) !SearchSignalResult {
+    var result = SearchSignalResult{};
+
+    var queue = NodeQueue.init(gpa.allocator(), {});
+    try queue.add(Node{ .index = map.signal_index, .distance = 0 });
 
     while (queue.count() > 0) {
-        const cell = queue.remove();
+        const node = queue.remove();
 
-        if (cell.index == search.starting_index)
-            search.starting_index_distance = cell.distance;
+        if (node.index == map.starting_index)
+            result.starting_index_distance = node.distance;
 
-        if (search.map[cell.index] == 'a') {
-            if (cell.distance < search.shortest_start_distance)
-                search.shortest_start_distance = cell.distance;
+        if (map.cells[node.index].height == 'a') {
+            if (node.distance < result.shortest_start_distance)
+                result.shortest_start_distance = node.distance;
         }
 
-        if (cell.index + 1 < search.map.len)
-            try addAdjacent(search, &queue, cell, cell.index + 1);
-        if (cell.index >= 1)
-            try addAdjacent(search, &queue, cell, cell.index - 1);
+        if (node.index + 1 < map.cells.len)
+            try addAdjacent(map, &queue, node, node.index + 1);
+        if (node.index >= 1)
+            try addAdjacent(map, &queue, node, node.index - 1);
 
-        if (cell.index + search.map_width < search.map.len)
-            try addAdjacent(search, &queue, cell, cell.index + search.map_width);
-        if (cell.index >= search.map_width)
-            try addAdjacent(search, &queue, cell, cell.index - search.map_width);
+        if (node.index + map.width < map.cells.len)
+            try addAdjacent(map, &queue, node, node.index + map.width);
+        if (node.index >= map.width)
+            try addAdjacent(map, &queue, node, node.index - map.width);
     }
+
+    return result;
 }
 
-fn addAdjacent(search: *SignalSearch, queue: *CellQueue, old: Cell, new_index: u32) !void {
-    if (search.map[new_index] + 1 >= search.map[old.index]) {
-        if (!search.map_visited[new_index]) {
-            search.map_visited[new_index] = true;
-            try queue.add(Cell{ .index = new_index, .distance = old.distance + 1 });
-        }
+fn addAdjacent(map: *SignalMap, queue: *NodeQueue, old: Node, new_index: u32) !void {
+    if (map.cells[new_index].height + 1 >= map.cells[old.index].height and !map.cells[new_index].visited) {
+        map.cells[new_index].visited = true;
+        try queue.add(Node{ .index = new_index, .distance = old.distance + 1 });
     }
 }
 

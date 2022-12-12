@@ -59,9 +59,7 @@ fn searchSignal(map: *SignalMap, starting_index: u32, signal_index: u32) !Search
     var queue = NodeQueue.init(gpa.allocator(), {});
     try queue.add(.{ .index = signal_index, .distance = 0 });
 
-    while (queue.count() > 0) {
-        const node = queue.remove();
-
+    while (queue.removeOrNull()) |node| {
         if (node.index == starting_index)
             result.starting_index_distance = node.distance;
 
@@ -76,6 +74,7 @@ fn searchSignal(map: *SignalMap, starting_index: u32, signal_index: u32) !Search
             new_indices.appendAssumeCapacity(node.index + 1);
         if (node.index >= 1)
             new_indices.appendAssumeCapacity(node.index - 1);
+
         if (node.index + map.width < map.cells.len)
             new_indices.appendAssumeCapacity(node.index + map.width);
         if (node.index >= map.width)

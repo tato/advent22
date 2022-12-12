@@ -2,7 +2,23 @@ const std = @import("std");
 
 fn solve(input: []const u8) !void {
     var map = try parse(input);
-    const result = try searchSignal(&map);
+
+    const starting_index: u32 = for (map.cells) |*cell, index| {
+        if (cell.height == 'S') {
+            cell.height = 'a';
+            break @intCast(u32, index);
+        }
+    } else unreachable;
+
+    const signal_index: u32 = for (map.cells) |*cell, index| {
+        if (cell.height == 'E') {
+            cell.height = 'z';
+            break @intCast(u32, index);
+        }
+    } else unreachable;
+
+    const result = try searchSignal(&map, starting_index, signal_index);
+
     std.debug.print(
         "Normal Distance: {d}, Shortest Distance: {d}\n",
         .{ result.starting_index_distance, result.shortest_start_distance },
@@ -10,37 +26,19 @@ fn solve(input: []const u8) !void {
 }
 
 const Cell = packed struct { height: u7, visited: bool };
-const SignalMap = struct {
-    cells: []Cell,
-    width: u32,
-    starting_index: u32,
-    signal_index: u32,
-};
+const SignalMap = struct { cells: []Cell, width: u32 };
 
 fn parse(input: []const u8) !SignalMap {
     var cells = std.ArrayList(Cell).init(gpa.allocator());
-    var map: SignalMap = undefined;
 
     var i = std.mem.tokenize(u8, input, "\n ");
-    while (i.next()) |map_line| {
-        map.width = @intCast(u32, map_line.len);
+    while (i.next()) |map_line|
         try cells.appendSlice(@ptrCast([]const Cell, map_line));
-    }
 
-    for (cells.items) |*cell, index| {
-        std.debug.assert(!cell.visited);
-        if (cell.height == 'S') {
-            map.starting_index = @intCast(u32, index);
-            cell.height = 'a';
-        }
-        if (cell.height == 'E') {
-            map.signal_index = @intCast(u32, index);
-            cell.height = 'z';
-        }
-    }
-
-    map.cells = try cells.toOwnedSlice();
-    return map;
+    return SignalMap{
+        .cells = try cells.toOwnedSlice(),
+        .width = @intCast(u32, std.mem.indexOfScalar(u8, input, '\n').?),
+    };
 }
 
 const Node = struct { index: u32, distance: u32 };
@@ -55,16 +53,16 @@ const SearchSignalResult = struct {
     shortest_start_distance: u32 = std.math.maxInt(u32),
 };
 
-fn searchSignal(map: *SignalMap) !SearchSignalResult {
+fn searchSignal(map: *SignalMap, starting_index: u32, signal_index: u32) !SearchSignalResult {
     var result = SearchSignalResult{};
 
     var queue = NodeQueue.init(gpa.allocator(), {});
-    try queue.add(Node{ .index = map.signal_index, .distance = 0 });
+    try queue.add(Node{ .index = signal_index, .distance = 0 });
 
     while (queue.count() > 0) {
         const node = queue.remove();
 
-        if (node.index == map.starting_index)
+        if (node.index == starting_index)
             result.starting_index_distance = node.distance;
 
         if (map.cells[node.index].height == 'a') {

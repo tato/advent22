@@ -12,7 +12,6 @@ fn solve(input: []const u8) !void {
 const SignalSearch = struct {
     map: []const u8,
     map_width: u32,
-    map_height: u32,
     map_visited: []bool,
     starting_index: u32,
     signal_index: u32,
@@ -24,23 +23,23 @@ const SignalSearch = struct {
 fn parse(input: []const u8) !SignalSearch {
     var map = std.ArrayList(u8).init(gpa.allocator());
     var search: SignalSearch = undefined;
-    search.map_height = 0;
     search.shortest_start_distance = std.math.maxInt(u32);
 
     var i = std.mem.tokenize(u8, input, "\n ");
     while (i.next()) |map_line| {
-        for (map_line) |cell, index| {
-            const cell_index = @intCast(u32, index);
-            switch (cell) {
-                'S' => search.starting_index = search.map_height * search.map_width + cell_index,
-                'E' => search.signal_index = search.map_height * search.map_width + cell_index,
-                else => {},
-            }
-        }
-
         search.map_width = @intCast(u32, map_line.len);
-        search.map_height += 1;
         try map.appendSlice(map_line);
+    }
+
+    for (map.items) |*cell, index| {
+        if (cell.* == 'S') {
+            search.starting_index = @intCast(u32, index);
+            cell.* = 'a';
+        }
+        if (cell.* == 'E') {
+            search.signal_index = @intCast(u32, index);
+            cell.* = 'z';
+        }
     }
 
     search.map = try map.toOwnedSlice();
@@ -66,7 +65,7 @@ fn searchSignal(search: *SignalSearch) !void {
         if (cell.index == search.starting_index)
             search.starting_index_distance = cell.distance;
 
-        if (getCellHeight(search, cell.index) == 'a') {
+        if (search.map[cell.index] == 'a') {
             if (cell.distance < search.shortest_start_distance)
                 search.shortest_start_distance = cell.distance;
         }
@@ -83,16 +82,8 @@ fn searchSignal(search: *SignalSearch) !void {
     }
 }
 
-fn getCellHeight(search: *SignalSearch, index: u32) u8 {
-    return switch (search.map[index]) {
-        'S' => 'a',
-        'E' => 'z',
-        else => |height| height,
-    };
-}
-
 fn addAdjacent(search: *SignalSearch, queue: *CellQueue, old: Cell, new_index: u32) !void {
-    if (getCellHeight(search, new_index) + 1 >= getCellHeight(search, old.index)) {
+    if (search.map[new_index] + 1 >= search.map[old.index]) {
         if (!search.map_visited[new_index]) {
             search.map_visited[new_index] = true;
             try queue.add(Cell{ .index = new_index, .distance = old.distance + 1 });

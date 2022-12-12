@@ -57,7 +57,7 @@ fn searchSignal(map: *SignalMap, starting_index: u32, signal_index: u32) !Search
     var result = SearchSignalResult{};
 
     var queue = NodeQueue.init(gpa.allocator(), {});
-    try queue.add(Node{ .index = signal_index, .distance = 0 });
+    try queue.add(.{ .index = signal_index, .distance = 0 });
 
     while (queue.count() > 0) {
         const node = queue.remove();
@@ -70,25 +70,27 @@ fn searchSignal(map: *SignalMap, starting_index: u32, signal_index: u32) !Search
                 result.shortest_start_distance = node.distance;
         }
 
-        if (node.index + 1 < map.cells.len)
-            try addAdjacent(map, &queue, node, node.index + 1);
-        if (node.index >= 1)
-            try addAdjacent(map, &queue, node, node.index - 1);
+        var new_indices = std.BoundedArray(u32, 4){};
 
+        if (node.index + 1 < map.cells.len)
+            new_indices.appendAssumeCapacity(node.index + 1);
+        if (node.index >= 1)
+            new_indices.appendAssumeCapacity(node.index - 1);
         if (node.index + map.width < map.cells.len)
-            try addAdjacent(map, &queue, node, node.index + map.width);
+            new_indices.appendAssumeCapacity(node.index + map.width);
         if (node.index >= map.width)
-            try addAdjacent(map, &queue, node, node.index - map.width);
+            new_indices.appendAssumeCapacity(node.index - map.width);
+
+        for (new_indices.slice()) |new_index| {
+            if (map.cells[new_index].visited) continue;
+            if (map.cells[new_index].height + 1 >= map.cells[node.index].height) {
+                map.cells[new_index].visited = true;
+                try queue.add(.{ .index = new_index, .distance = node.distance + 1 });
+            }
+        }
     }
 
     return result;
-}
-
-fn addAdjacent(map: *SignalMap, queue: *NodeQueue, old: Node, new_index: u32) !void {
-    if (map.cells[new_index].height + 1 >= map.cells[old.index].height and !map.cells[new_index].visited) {
-        map.cells[new_index].visited = true;
-        try queue.add(Node{ .index = new_index, .distance = old.distance + 1 });
-    }
 }
 
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};

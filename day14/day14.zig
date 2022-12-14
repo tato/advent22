@@ -15,7 +15,7 @@ fn solve(input: []const u8) !void {
     std.debug.print("Abyss Sand: {d}, Floor Sand: {d}\n", .{ abyss_sand, floor_sand });
 }
 
-const sand_point = [2]u32{ 500, 0 };
+const sand_source = [2]u32{ 500, 0 };
 const cave_width: usize = 1_000;
 const cave_height: usize = 200;
 const Material = enum { air, rock, sand };
@@ -67,31 +67,27 @@ fn initCave(cave: *Cave, input: []const u8, with_floor: bool) !void {
 fn fillCave(cave: *Cave) u32 {
     var total_sand: u32 = 0;
 
-    fill_cave: while (true) {
-        var sand = sand_point;
-        while (sand[1] < cave_height - 1) {
-            const sand_tests: []const [2]u32 = &.{
-                .{ sand[0], sand[1] + 1 },
-                .{ sand[0] - 1, sand[1] + 1 },
-                .{ sand[0] + 1, sand[1] + 1 },
+    while (true) {
+        var sand_position = sand_source;
+        while (sand_position[1] < cave_height - 1) {
+            const next_positions: []const [2]u32 = &.{
+                .{ sand_position[0] + 0, sand_position[1] + 1 },
+                .{ sand_position[0] - 1, sand_position[1] + 1 },
+                .{ sand_position[0] + 1, sand_position[1] + 1 },
             };
-            for (sand_tests) |sand_test| {
-                if (get(cave, sand_test).* == .air) {
-                    sand = sand_test;
-                    break;
-                }
+            sand_position = for (next_positions) |next_position| {
+                if (get(cave, next_position).* == .air)
+                    break next_position;
             } else {
-                get(cave, sand).* = .sand;
+                get(cave, sand_position).* = .sand;
                 total_sand += 1;
 
-                if (sand[0] == sand_point[0] and sand[1] == sand_point[1])
+                if (sand_position[0] == sand_source[0] and sand_position[1] == sand_source[1])
                     return total_sand;
 
-                continue :fill_cave;
-            }
-        }
-
-        return total_sand;
+                break;
+            };
+        } else return total_sand;
     }
 }
 

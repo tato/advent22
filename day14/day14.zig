@@ -66,29 +66,38 @@ fn initCave(cave: *Cave, input: []const u8, with_floor: bool) !void {
 
 fn fillCave(cave: *Cave) u32 {
     var total_sand: u32 = 0;
+    while (sandSimulate(cave) == .stopped) : (total_sand += 1) {}
+    return total_sand;
+}
 
-    while (true) {
-        var sand_position = sand_source;
-        while (sand_position[1] < cave_height - 1) {
-            const next_positions: []const [2]u32 = &.{
-                .{ sand_position[0] + 0, sand_position[1] + 1 },
-                .{ sand_position[0] - 1, sand_position[1] + 1 },
-                .{ sand_position[0] + 1, sand_position[1] + 1 },
-            };
-            sand_position = for (next_positions) |next_position| {
-                if (get(cave, next_position).* == .air)
-                    break next_position;
-            } else {
-                get(cave, sand_position).* = .sand;
-                total_sand += 1;
+fn sandSimulate(cave: *Cave) enum { stopped, abyss, source_blocked } {
+    if (get(cave, sand_source).* == .sand)
+        return .source_blocked;
 
-                if (sand_position[0] == sand_source[0] and sand_position[1] == sand_source[1])
-                    return total_sand;
-
-                break;
-            };
-        } else return total_sand;
+    var sand_position = sand_source;
+    while (sand_position[1] < cave_height - 1) {
+        if (sandStep(cave, sand_position)) |next_position| {
+            sand_position = next_position;
+        } else {
+            get(cave, sand_position).* = .sand;
+            return .stopped;
+        }
     }
+
+    return .abyss;
+}
+
+fn sandStep(cave: *Cave, sand_position: [2]u32) ?[2]u32 {
+    const next_positions: []const [2]u32 = &.{
+        .{ sand_position[0] + 0, sand_position[1] + 1 },
+        .{ sand_position[0] - 1, sand_position[1] + 1 },
+        .{ sand_position[0] + 1, sand_position[1] + 1 },
+    };
+    for (next_positions) |next_position| {
+        if (get(cave, next_position).* == .air)
+            return next_position;
+    }
+    return null;
 }
 
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};

@@ -1,11 +1,10 @@
 const std = @import("std");
 
 fn solve(input: []const u8, required_rocks: u64, paint: bool) !void {
-    const chamber_wall = 0b100000001;
-    const chamber = try gpa.allocator().alloc(u9, 1 << 20);
+    const chamber = try gpa.allocator().alloc(RockRow, 1 << 20);
     defer gpa.allocator().free(chamber);
-    for (chamber) |*c| c.* = chamber_wall;
-    chamber[0] = 0b111111111;
+    for (chamber) |*c| c.* = 0;
+    chamber[0] = 0b1111111;
 
     var memories = std.AutoArrayHashMap(ChamberId, ChamberStats).init(gpa.allocator());
     defer memories.deinit();
@@ -66,7 +65,7 @@ fn solve(input: []const u8, required_rocks: u64, paint: bool) !void {
                 for (rock) |rock_row, rock_row_index|
                     chamber[rock_y + rock_row_index] |= rock_row;
 
-                while (chamber[highest_rock_y + 1] != chamber_wall) : (highest_rock_y += 1) {}
+                while (chamber[highest_rock_y + 1] != 0) : (highest_rock_y += 1) {}
 
                 break;
             }
@@ -76,14 +75,14 @@ fn solve(input: []const u8, required_rocks: u64, paint: bool) !void {
     std.debug.print("Rock Height: {d}\n", .{highest_rock_y});
 }
 
-const RockRow = u9;
+const RockRow = u7;
 const RockShape = [4]RockRow;
 const rock_shapes: []const RockShape = &.{
-    .{ 0b000111100, 0b000000000, 0b000000000, 0b000000000 }, // _
-    .{ 0b000010000, 0b000111000, 0b000010000, 0b000000000 }, // +
-    .{ 0b000111000, 0b000001000, 0b000001000, 0b000000000 }, // ⅃
-    .{ 0b000100000, 0b000100000, 0b000100000, 0b000100000 }, // |
-    .{ 0b000110000, 0b000110000, 0b000000000, 0b000000000 }, // ◾
+    .{ 0b0011110, 0b0000000, 0b0000000, 0b0000000 }, // _
+    .{ 0b0001000, 0b0011100, 0b0001000, 0b0000000 }, // +
+    .{ 0b0011100, 0b0000100, 0b0000100, 0b0000000 }, // ⅃
+    .{ 0b0010000, 0b0010000, 0b0010000, 0b0010000 }, // |
+    .{ 0b0011000, 0b0011000, 0b0000000, 0b0000000 }, // ◾
 };
 const ChamberId = struct {
     rock_shape_index: u32,
@@ -98,12 +97,14 @@ const ChamberStats = struct {
 
 fn shiftRock(rock: RockShape, push: u8) RockShape {
     var shifted_rock = rock;
-    for (shifted_rock) |*row| {
+    for (shifted_rock) |*row, row_index| {
         switch (push) {
             '>' => row.* >>= 1,
             '<' => row.* <<= 1,
             else => unreachable,
         }
+        if (@popCount(row.*) != @popCount(rock[row_index]))
+            return rock;
     }
     return shifted_rock;
 }
@@ -131,11 +132,12 @@ fn paintChamber(chamber: []const RockRow, falling: ?RockShape, falling_y: u64) !
         else
             0;
 
-        var x: u4 = 7;
-        while (x > 0) : (x -= 1) {
-            if ((falling_row >> x) & 1 != 0) {
+        var x: u3 = 0;
+        while (x < 7) : (x += 1) {
+            const shift_amount = 6 - x;
+            if ((falling_row >> shift_amount) & 1 != 0) {
                 try writer.writeAll("@");
-            } else if ((chamber[y] >> x) & 1 != 0) {
+            } else if ((chamber[y] >> shift_amount) & 1 != 0) {
                 try writer.writeAll("#");
             } else {
                 try writer.writeAll(".");

@@ -1,94 +1,121 @@
 const std = @import("std");
 
-fn solve(input: []const u8, required_rocks: u64) !void {
-    const chamber = try gpa.allocator().alloc(u7, 1 << 20);
-    for (chamber) |*c| c.* = 0;
-    chamber[0] = 0b1111111;
+fn solve(input: []const u8, required_rocks: u64, paint: bool) !void {
+    const chamber_wall = 0b100000001;
+    const chamber = try gpa.allocator().alloc(u9, 1 << 20);
+    for (chamber) |*c| c.* = chamber_wall;
+    chamber[0] = 0b111111111;
 
-    var highest_rock_y: u64 = 1;
+    var highest_rock_y: u64 = 0;
     var stopped_rocks: u64 = 0;
     var move_index: u64 = 0;
 
     while (stopped_rocks < required_rocks) : (stopped_rocks += 1) {
-        const rock_shape = rock_shapes[stopped_rocks % rock_shapes.len];
-        var rock_x: u3 = 2;
-        var rock_y = highest_rock_y + 3;
+        var rock = rock_shapes[stopped_rocks % rock_shapes.len];
+        var rock_y: u64 = highest_rock_y + 4;
+
+        if (paint)
+            try paintChamber(chamber[0..@max(highest_rock_y, rock_y + 4)], rock, rock_y);
 
         var is_rock_stopped = false;
         while (!is_rock_stopped) : (move_index += 1) {
-            const next_rock_x = switch (input[move_index % input.len]) {
-                '<' => rock_x -| 1,
-                '>' => @min(rock_x +| 1, 6),
-                else => unreachable,
-            };
-            if (!collide(chamber, rock_shape, next_rock_x, rock_y))
-                rock_x = next_rock_x;
+            const pushed_rock = shiftRock(rock, input[move_index % input.len]);
+            if (!collide(chamber, pushed_rock, rock_y))
+                rock = pushed_rock;
 
-            if (!collide(chamber, rock_shape, rock_x, rock_y - 1)) {
+            if (!collide(chamber, rock, rock_y - 1)) {
                 rock_y -= 1;
             } else {
-                for (rock_shape) |rock_row, rock_row_index| {
-                    const positioned_rock_row = rock_row >> rock_x;
-                    chamber[rock_y + rock_row_index] |= positioned_rock_row;
-                }
+                for (rock) |rock_row, rock_row_index|
+                    chamber[rock_y + rock_row_index] |= rock_row;
 
-                highest_rock_y = @max(highest_rock_y, rock_y + rock_shape.len);
+                while (chamber[highest_rock_y + 1] != chamber_wall) : (highest_rock_y += 1) {}
 
                 is_rock_stopped = true;
             }
         }
     }
 
-    std.debug.print("Rock Height: {d}\n", .{highest_rock_y - 1});
+    std.debug.print("Rock Height: {d}\n", .{highest_rock_y});
 }
 
-const rock_shapes: []const []const u7 = &.{
-    &.{
-        0b1111000,
-    },
-    &.{
-        0b0100000,
-        0b1110000,
-        0b0100000,
-    },
-    &.{
-        0b1110000,
-        0b0010000,
-        0b0010000,
-    },
-    &.{
-        0b1000000,
-        0b1000000,
-        0b1000000,
-        0b1000000,
-    },
-    &.{
-        0b1100000,
-        0b1100000,
-    },
+const RockRow = u9;
+const RockShape = [4]RockRow;
+const rock_shapes: []const RockShape = &.{
+    .{ 0b000111100, 0b000000000, 0b000000000, 0b000000000 }, // _
+    .{ 0b000010000, 0b000111000, 0b000010000, 0b000000000 }, // +
+    .{ 0b000111000, 0b000001000, 0b000001000, 0b000000000 }, // ⅃
+    .{ 0b000100000, 0b000100000, 0b000100000, 0b000100000 }, // |
+    .{ 0b000110000, 0b000110000, 0b000000000, 0b000000000 }, // ◾
 };
 
-fn collide(chamber: []u7, rock_shape: []const u7, rock_x: u3, rock_y: u64) bool {
+fn shiftRock(rock: RockShape, push: u8) RockShape {
+    var shifted_rock = rock;
+    for (shifted_rock) |*row| {
+        switch (push) {
+            '>' => row.* >>= 1,
+            '<' => row.* <<= 1,
+            else => unreachable,
+        }
+    }
+    return shifted_rock;
+}
+
+fn collide(chamber: []RockRow, rock_shape: RockShape, rock_y: u64) bool {
     for (rock_shape) |rock_row, rock_row_index| {
-        const positioned_rock_row = rock_row >> rock_x;
-        if (@popCount(positioned_rock_row) != @popCount(rock_row))
-            return true;
-        if (chamber[rock_y + rock_row_index] & positioned_rock_row != 0)
+        if (chamber[rock_y + rock_row_index] & rock_row != 0)
             return true;
     }
     return false;
 }
 
+fn paintChamber(chamber: []const RockRow, falling: ?RockShape, falling_y: u64) !void {
+    var stderr = std.io.bufferedWriter(std.io.getStdErr().writer());
+    const writer = stderr.writer();
+
+    try writer.writeAll("\n");
+
+    var y = chamber.len - 1;
+    while (y > 0) : (y -= 1) {
+        try writer.writeAll("|");
+
+        const falling_row = if (falling != null and y >= falling_y and y < falling_y + falling.?.len)
+            falling.?[y - falling_y]
+        else
+            0;
+
+        var x: u4 = 7;
+        while (x > 0) : (x -= 1) {
+            if ((falling_row >> x) & 1 != 0) {
+                try writer.writeAll("@");
+            } else if ((chamber[y] >> x) & 1 != 0) {
+                try writer.writeAll("#");
+            } else {
+                try writer.writeAll(".");
+            }
+        }
+        try writer.writeAll("|\n");
+    }
+
+    try writer.writeAll("+-------+\n");
+    try stderr.flush();
+}
+
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 
 test "solve a" {
-    try solve(@embedFile("input.txt"), 2022);
+    try solve(@embedFile("input.txt"), 2022, false);
 }
 
 test "solve b" {
-    // try solve(@embedFile("input.txt"), 1_000_000_000_000);
+    // try solve(@embedFile("input.txt"), 1_000_000_000_000, false);
 }
 
 test "exa01 a" {
-    try solve(">>><<><>><<<>><>>><<<>>><<<><<<>><>><<>>", 2022);
+    try solve(">>><<><>><<<>><>>><<<>>><<<><<<>><>><<>>", 2022, false);
+}
+
+test "paint" {
+    if (true) return error.SkipZigTest;
+    try solve(">>><<><>><<<>><>>><<<>>><<<><<<>><>><<>>", 11, true);
 }

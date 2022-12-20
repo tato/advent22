@@ -3,15 +3,52 @@ const std = @import("std");
 fn solve(input: []const u8, required_rocks: u64, paint: bool) !void {
     const chamber_wall = 0b100000001;
     const chamber = try gpa.allocator().alloc(u9, 1 << 20);
+    defer gpa.allocator().free(chamber);
     for (chamber) |*c| c.* = chamber_wall;
     chamber[0] = 0b111111111;
 
+    var memories = std.AutoArrayHashMap(ChamberId, ChamberStats).init(gpa.allocator());
+    defer memories.deinit();
+
     var highest_rock_y: u64 = 0;
     var stopped_rocks: u64 = 0;
-    var move_index: u64 = 0;
+    var move_index: u32 = 0;
 
     while (stopped_rocks < required_rocks) : (stopped_rocks += 1) {
-        var rock = rock_shapes[stopped_rocks % rock_shapes.len];
+        var state = ChamberId{
+            .rock_shape_index = @intCast(u32, stopped_rocks % rock_shapes.len),
+            .move_index = move_index % @intCast(u32, input.len),
+            .chamber_state = .{0} ** ChamberId.state_len,
+        };
+        if (highest_rock_y >= ChamberId.state_len) {
+            state.chamber_state = chamber[highest_rock_y - ChamberId.state_len ..][0..ChamberId.state_len].*;
+        }
+
+        const entry = try memories.getOrPut(state);
+        if (entry.found_existing) {
+            const period_height = highest_rock_y - entry.value_ptr.height;
+            const period_rocks = stopped_rocks - entry.value_ptr.stopped_rocks;
+
+            const remaining_rocks = required_rocks - stopped_rocks;
+            const remaining_full_periods = remaining_rocks / period_rocks;
+
+            if (remaining_full_periods > 0) {
+                highest_rock_y += remaining_full_periods * period_height;
+
+                const extra_rocks = remaining_rocks % period_rocks;
+                const extra_index = entry.index + extra_rocks;
+                highest_rock_y += memories.values()[extra_index].height - entry.value_ptr.height;
+
+                break;
+            }
+        } else {
+            entry.value_ptr.* = .{
+                .height = highest_rock_y,
+                .stopped_rocks = stopped_rocks,
+            };
+        }
+
+        var rock = rock_shapes[state.rock_shape_index];
         var rock_y: u64 = highest_rock_y + 4;
 
         if (paint)
@@ -19,7 +56,7 @@ fn solve(input: []const u8, required_rocks: u64, paint: bool) !void {
 
         var is_rock_stopped = false;
         while (!is_rock_stopped) : (move_index += 1) {
-            const pushed_rock = shiftRock(rock, input[move_index % input.len]);
+            const pushed_rock = shiftRock(rock, input[move_index % @intCast(u32, input.len)]);
             if (!collide(chamber, pushed_rock, rock_y))
                 rock = pushed_rock;
 
@@ -47,6 +84,16 @@ const rock_shapes: []const RockShape = &.{
     .{ 0b000111000, 0b000001000, 0b000001000, 0b000000000 }, // ⅃
     .{ 0b000100000, 0b000100000, 0b000100000, 0b000100000 }, // |
     .{ 0b000110000, 0b000110000, 0b000000000, 0b000000000 }, // ◾
+};
+const ChamberId = struct {
+    rock_shape_index: u32,
+    move_index: u32,
+    chamber_state: [state_len]RockRow,
+    const state_len = 12;
+};
+const ChamberStats = struct {
+    height: u64,
+    stopped_rocks: u64,
 };
 
 fn shiftRock(rock: RockShape, push: u8) RockShape {
@@ -108,14 +155,13 @@ test "solve a" {
 }
 
 test "solve b" {
-    // try solve(@embedFile("input.txt"), 1_000_000_000_000, false);
+    try solve(@embedFile("input.txt"), 1_000_000_000_000, false);
 }
 
 test "exa01 a" {
     try solve(">>><<><>><<<>><>>><<<>>><<<><<<>><>><<>>", 2022, false);
 }
 
-test "paint" {
-    if (true) return error.SkipZigTest;
-    try solve(">>><<><>><<<>><>>><<<>>><<<><<<>><>><<>>", 11, true);
+test "exa01 b" {
+    try solve(">>><<><>><<<>><>>><<<>>><<<><<<>><>><<>>", 1_000_000_000_000, false);
 }

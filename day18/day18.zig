@@ -82,7 +82,6 @@ fn calculateReachability(reachability: *ReachabilityMatrix, cubes: CubeArray) !v
     var queue = std.AutoArrayHashMap(Cube, void).init(gpa.allocator());
     try queue.put(.{ exterior_elem - 1, exterior_elem - 1, exterior_elem - 1 }, {});
 
-    std.debug.print("\n", .{});
     var index: usize = 0;
     while (index < queue.count()) : (index += 1) {
         const cube = queue.keys()[index];

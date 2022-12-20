@@ -52,20 +52,16 @@ fn parseCubes(input: []const u8) !CubeArray {
     return cubes;
 }
 
-fn elemNeighbours(elem: CubeElem) [2]CubeElem {
-    return .{ elem +% std.math.maxInt(CubeElem), elem +% 1 };
-}
-
 fn cubeNeighbours(cube: Cube, neighbours: *Neighbours) *Neighbours {
-    for (elemNeighbours(cube[0])) |x| {
+    inline for (.{ cube[0] -% 1, cube[0] +% 1 }) |x| {
         if (x < exterior_elem)
             neighbours.appendAssumeCapacity(.{ x, cube[1], cube[2] });
     }
-    for (elemNeighbours(cube[1])) |y| {
+    inline for (.{ cube[1] -% 1, cube[1] +% 1 }) |y| {
         if (y < exterior_elem)
             neighbours.appendAssumeCapacity(.{ cube[0], y, cube[2] });
     }
-    for (elemNeighbours(cube[2])) |z| {
+    inline for (.{ cube[2] -% 1, cube[2] +% 1 }) |z| {
         if (z < exterior_elem)
             neighbours.appendAssumeCapacity(.{ cube[0], cube[1], z });
     }

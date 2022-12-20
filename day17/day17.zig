@@ -4,7 +4,6 @@ fn solve(input: []const u8, required_rocks: u64, paint: bool) !void {
     const chamber = try gpa.allocator().alloc(RockRow, 1 << 20);
     defer gpa.allocator().free(chamber);
     for (chamber) |*c| c.* = 0;
-    chamber[0] = 0b1111111;
 
     var memories = std.AutoArrayHashMap(ChamberId, ChamberStats).init(gpa.allocator());
     defer memories.deinit();
@@ -48,7 +47,7 @@ fn solve(input: []const u8, required_rocks: u64, paint: bool) !void {
         }
 
         var rock = rock_shapes[state.rock_shape_index];
-        var rock_y: u64 = highest_rock_y + 4;
+        var rock_y: u64 = highest_rock_y + 3;
 
         if (paint)
             try paintChamber(chamber[0..@max(highest_rock_y, rock_y + 4)], rock, rock_y);
@@ -59,13 +58,13 @@ fn solve(input: []const u8, required_rocks: u64, paint: bool) !void {
                 rock = pushed_rock;
             defer move_index += 1;
 
-            if (!collide(chamber, rock, rock_y - 1)) {
+            if (rock_y > 0 and !collide(chamber, rock, rock_y - 1)) {
                 rock_y -= 1;
             } else {
                 for (rock) |rock_row, rock_row_index|
                     chamber[rock_y + rock_row_index] |= rock_row;
 
-                while (chamber[highest_rock_y + 1] != 0) : (highest_rock_y += 1) {}
+                while (chamber[highest_rock_y] != 0) : (highest_rock_y += 1) {}
 
                 break;
             }
@@ -123,8 +122,10 @@ fn paintChamber(chamber: []const RockRow, falling: ?RockShape, falling_y: u64) !
 
     try writer.writeAll("\n");
 
-    var y = chamber.len - 1;
-    while (y > 0) : (y -= 1) {
+    var distance_to_top: u64 = 0;
+    while (distance_to_top < chamber.len) : (distance_to_top += 1) {
+        const y = chamber.len - 1 - distance_to_top;
+
         try writer.writeAll("|");
 
         const falling_row = if (falling != null and y >= falling_y and y < falling_y + falling.?.len)
@@ -166,4 +167,9 @@ test "exa01 a" {
 
 test "exa01 b" {
     try solve(">>><<><>><<<>><>>><<<>>><<<><<<>><>><<>>", 1_000_000_000_000, false);
+}
+
+test "exa01 a paint" {
+    if (true) return error.SkipZigTest;
+    try solve(">>><<><>><<<>><>>><<<>>><<<><<<>><>><<>>", 11, true);
 }

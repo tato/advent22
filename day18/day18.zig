@@ -53,11 +53,7 @@ fn parseCubes(input: []const u8) !CubeArray {
 }
 
 fn elemNeighbours(elem: CubeElem) [2]CubeElem {
-    const T = std.meta.Int(.signed, @typeInfo(CubeElem).Int.bits);
-    return .{
-        @bitCast(CubeElem, @intCast(T, elem) - 1),
-        @bitCast(CubeElem, @intCast(T, elem) + 1),
-    };
+    return .{ elem +% std.math.maxInt(CubeElem), elem +% 1 };
 }
 
 fn cubeNeighbours(cube: Cube, neighbours: *Neighbours) *Neighbours {

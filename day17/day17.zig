@@ -54,11 +54,11 @@ fn solve(input: []const u8, required_rocks: u64, paint: bool) !void {
         if (paint)
             try paintChamber(chamber[0..@max(highest_rock_y, rock_y + 4)], rock, rock_y);
 
-        var is_rock_stopped = false;
-        while (!is_rock_stopped) : (move_index += 1) {
+        while (true) {
             const pushed_rock = shiftRock(rock, input[move_index % @intCast(u32, input.len)]);
             if (!collide(chamber, pushed_rock, rock_y))
                 rock = pushed_rock;
+            defer move_index += 1;
 
             if (!collide(chamber, rock, rock_y - 1)) {
                 rock_y -= 1;
@@ -68,7 +68,7 @@ fn solve(input: []const u8, required_rocks: u64, paint: bool) !void {
 
                 while (chamber[highest_rock_y + 1] != chamber_wall) : (highest_rock_y += 1) {}
 
-                is_rock_stopped = true;
+                break;
             }
         }
     }

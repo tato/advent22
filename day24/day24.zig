@@ -14,20 +14,8 @@ pub fn main() !void {
     std.debug.print("Part 2: {d}\n", .{try part2(ally, input)});
 }
 
-const Input = struct {
-    cells: []const u8,
-    w: u16,
-    h: u16,
-    start_x: u16,
-    start_y: u16,
-    target_x: u16,
-    target_y: u16,
-};
-const Spot = struct {
-    minute: u32,
-    x: u16,
-    y: u16,
-};
+const Input = struct { cells: []const u8, w: u16, h: u16 };
+const Spot = struct { minute: u32, x: u16, y: u16 };
 const SpotList = std.SinglyLinkedList(Spot);
 const SeenMap = std.AutoHashMap(Spot, void);
 
@@ -44,23 +32,15 @@ fn parse(ally: std.mem.Allocator, input: []const u8) !Input {
         try cells.appendSlice(line);
     }
 
-    return Input{
-        .cells = try cells.toOwnedSlice(),
-        .w = @intCast(w),
-        .h = @intCast(h),
-        .start_x = 1,
-        .start_y = 0,
-        .target_x = @intCast(w - 2),
-        .target_y = @intCast(h - 1),
-    };
+    return Input{ .cells = try cells.toOwnedSlice(), .w = @intCast(w), .h = @intCast(h) };
 }
 
 fn part1(ally: std.mem.Allocator, input: Input) !u64 {
     return try navigate(
         ally,
         input,
-        Spot{ .minute = 0, .x = input.start_x, .y = input.start_y },
-        Spot{ .minute = 0, .x = input.target_x, .y = input.target_y },
+        Spot{ .minute = 0, .x = 1, .y = 0 },
+        Spot{ .minute = 0, .x = @intCast(input.w - 2), .y = @intCast(input.h - 1) },
     );
 }
 
@@ -68,20 +48,20 @@ fn part2(ally: std.mem.Allocator, input: Input) !u64 {
     const trip1 = try navigate(
         ally,
         input,
-        Spot{ .minute = 0, .x = input.start_x, .y = input.start_y },
-        Spot{ .minute = 0, .x = input.target_x, .y = input.target_y },
+        Spot{ .minute = 0, .x = 1, .y = 0 },
+        Spot{ .minute = 0, .x = @intCast(input.w - 2), .y = @intCast(input.h - 1) },
     );
     const trip2 = try navigate(
         ally,
         input,
-        Spot{ .minute = trip1, .x = input.target_x, .y = input.target_y },
-        Spot{ .minute = 0, .x = input.start_x, .y = input.start_y },
+        Spot{ .minute = trip1, .x = @intCast(input.w - 2), .y = @intCast(input.h - 1) },
+        Spot{ .minute = 0, .x = 1, .y = 0 },
     );
     const trip3 = try navigate(
         ally,
         input,
-        Spot{ .minute = trip2, .x = input.start_x, .y = input.start_y },
-        Spot{ .minute = 0, .x = input.target_x, .y = input.target_y },
+        Spot{ .minute = trip2, .x = 1, .y = 0 },
+        Spot{ .minute = 0, .x = @intCast(input.w - 2), .y = @intCast(input.h - 1) },
     );
     return trip3;
 }
